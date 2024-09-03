@@ -31,6 +31,8 @@ class DebateBot:
         2. 친구의 주장이 적절하다면 반론의 전략 2번(방어적으로 주장을 하는 방법)을 사용하세요.
         """
 
+        self.evaluation_result = ''
+
     def load_data(self):
         try:
             with open('debate_topics.json', 'r', encoding='utf-8') as f:
@@ -114,6 +116,15 @@ class DebateBot:
             full_chat_str = "\n".join(full_chat)
             user_chat_str = "\n".join(user_messages)
 
+            template = '''
+            {{
+                "주제의 일관성": {{"점수": "점수", "코멘트": "코멘트", "개선을 위한 조언": "조언"}},
+                "논리적 연결성": {{"점수": "점수", "코멘트": "코멘트", "개선을 위한 조언": "조언"}},
+                "반박의 적절성": {{"점수": "점수", "코멘트": "코멘트", "개선을 위한 조언": "조언"}},
+                "근거의 타당성": {{"점수": "점수", "코멘트": "코멘트", "개선을 위한 조언": "조언"}},
+                "총점": "0-100"
+            }}'''
+
             evaluation_prompt = f"""
             당신은 토론대회의 심판자입니다.
             다음은 전체 토론 대화 내용입니다:
@@ -132,15 +143,13 @@ class DebateBot:
             개선 방안에서는 사용자가 실제로 말한 문장을 제시하고, 어떻게 바꾸면 더 나은 점수를 받을 수 있는지 구체적으로 설명해 주세요.
             마지막에는 총점(100점 만점)을 제시해 주세요.
 
-            반드시 아래의 json형식으로 반환해 주세요:
-            {{
-                "주제의 일관성": {{"점수": "점수", "코멘트": "코멘트", "개선을 위한 조언"}},
-                "논리적 연결성": {{"점수": "점수", "코멘트": "코멘트", "개선을 위한 조언"}},
-                "반박의 적절성": {{"점수": "점수", "코멘트": "코멘트", "개선을 위한 조언"}},
-                "근거의 타당성": {{"점수": "점수", "코멘트": "코멘트", "개선을 위한 조언"}},
-                "총점": 0-100
-            }}
+            **반드시 아래의 형식을 따르세요:**
+            반환하는 JSON은 두 개의 중괄호로 감싸야 합니다. 예를 들어:
+            {template}
+
+            주의: **모든 중괄호**는 **반드시 2개를 겹쳐서** 반환하세요. 이는 필수사항입니다.
             """
+
 
             response = self.client.messages.create(
                 model="claude-3-5-sonnet-20240620",
@@ -153,25 +162,25 @@ class DebateBot:
 
             # JSON 형식 검증 및 수정
             try:
-                evaluation_result = json.loads(response_text)
+                # 이중 중괄호를 단일 중괄호로 변환
+                json_text = response_text.replace('{{', '{').replace('}}', '}')
+                # 이스케이프된 큰따옴표를 일반 큰따옴표로 변환
+                json_text = json_text.replace('\\"', '"')
+                # 모든 키-값 쌍이 쉼표로 올바르게 구분되었는지 확인
+                json_text = json_text.replace('": "', '": "').replace('", "', '", "')
+                self.evaluation_result = json.loads(json_text)
             except json.JSONDecodeError:
                 json_start = response_text.find('{')
                 json_end = response_text.rfind('}') + 1
                 if json_start != -1 and json_end != -1:
                     json_text = response_text[json_start:json_end]
-                    evaluation_result = json.loads(json_text)
+                    json_text = json_text.replace('{{', '{').replace('}}', '}')
+                    json_text = json_text.replace('\\"', '"')
+                    json_text = json_text.replace('": "', '": "').replace('", "', '", "')
+                    self.evaluation_result = json.loads(json_text)
                 else:
                     raise ValueError("유효한 JSON을 찾을 수 없습니다.")
-
-        except KeyError as e:
-            logger.error(f"KeyError: {str(e)} - ensure chat_history has the correct structure with 'user' and 'ai'.")
-            return {
-                "error": f"An error occurred during evaluation: Missing key {str(e)}",
-                "총점": 0
-            }
+            return self.evaluation_result
         except Exception as e:
-            logger.error(f"평가 중 오류 발생: {e}")
-            return {
-                "error": f"An error occurred during evaluation: {str(e)}",
-                "총점": 0
-            }
+            logger.error(f"Error in evaluate_debate: {str(e)}")
+            return {"error": str(e), "raw_response": response_text}
