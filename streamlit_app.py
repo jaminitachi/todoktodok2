@@ -350,7 +350,7 @@ def show_evaluation_page():
                 if isinstance(result[key], dict):
                     score = result[key].get('점수', 'N/A')  # 기본 값 설정
                     improvement = result[key].get('개선을 위한 조언', 'N/A')  # 기본 값 설정
-                    st.markdown(f"**{key} ({score} / 20)**")
+                    st.markdown(f"**{key} ({score} / 25)**")
                     st.markdown(f"- 개선방안: {improvement}")
                     scores.append(score)
                 else:
