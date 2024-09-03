@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # 디버그 모드 설정
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 # 세션 상태 초기화 함수
 def initialize_session_state():
