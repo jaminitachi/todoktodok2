@@ -160,27 +160,19 @@ class DebateBot:
             response_text = response.content[0].text
             logger.info(f"AI response: {response_text}")
 
-            # JSON 형식 검증 및 수정
-            try:
-                # 이중 중괄호를 단일 중괄호로 변환
-                json_text = response_text.replace('{{', '{').replace('}}', '}')
-                # 이스케이프된 큰따옴표를 일반 큰따옴표로 변환
-                json_text = json_text.replace('\\"', '"')
-                # 모든 키-값 쌍이 쉼표로 올바르게 구분되었는지 확인
-                json_text = json_text.replace('": "', '": "').replace('", "', '", "')
-                self.evaluation_result = json.loads(json_text)
-            except json.JSONDecodeError:
-                json_start = response_text.find('{')
-                json_end = response_text.rfind('}') + 1
-                if json_start != -1 and json_end != -1:
-                    json_text = response_text[json_start:json_end]
-                    json_text = json_text.replace('{{', '{').replace('}}', '}')
-                    json_text = json_text.replace('\\"', '"')
-                    json_text = json_text.replace('": "', '": "').replace('", "', '", "')
-                    self.evaluation_result = json.loads(json_text)
-                else:
-                    raise ValueError("유효한 JSON을 찾을 수 없습니다.")
+            # JSON 형식 수정
+            response_text = response_text.replace('{{', '{').replace('}}', '}')
+            response_text = response_text.replace('": "', '": "').replace('", "', '", "')
+
+            # 이스케이프된 큰따옴표를 일반 큰따옴표로 변환
+            response_text = response_text.replace('\\"', '"')
+
+            self.evaluation_result = json.loads(response_text)
             return self.evaluation_result
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing error: {e}")
+            logger.error(f"Problematic JSON string: {response_text}")
+            return {"error": str(e), "raw_response": response_text}
         except Exception as e:
             logger.error(f"Error in evaluate_debate: {str(e)}")
             return {"error": str(e), "raw_response": response_text}
